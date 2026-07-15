@@ -1,7 +1,7 @@
 import requests
 
 def get_weather():
-    url = "https://open-meteo.com"
+    url = "https://api.open-meteo.com/v1/forecast"  # ← Fix: Add the full endpoint path
     
     query_parameters = {
         "latitude": 37.8715,
@@ -39,4 +39,3 @@ def get_weather():
 
 if __name__ == "__main__":
     get_weather()
-
