@@ -74,6 +74,16 @@ print("Where are you located? (Default: Berkeley, California)")
 user_location = input("Enter your location (or press Enter for Berkeley): ").strip()
 latitude, longitude, location_name = resolve_location(user_location, client)
 
+# Ask user for gender preference
+print("\nDo you prefer masculine or feminine clothing? (M/F/leave blank for unisex)")
+gender_input = input("Enter M, F, or press Enter for unisex: ").strip().lower()
+if gender_input in {"m", "masculine", "male", "man"}:
+    preferred_gender = "Men"
+elif gender_input in {"f", "feminine", "female", "woman"}:
+    preferred_gender = "Women"
+else:
+    preferred_gender = "Unisex"
+
 # Get weather for the user's location
 print(f"\nFetching weather for {location_name}...")
 weather_info = get_weather(latitude, longitude)
@@ -90,6 +100,7 @@ system_prompt = f"""You are a helpful personal stylist AI assistant.
 You help users with clothing and fashion advice.
 
 Current weather in {location_name}: {weather_info}
+Preferred clothing profile: {preferred_gender}
 
 {wardrobe_context}
 
@@ -109,7 +120,7 @@ while True:
         break
 
     if should_use_local_recommender(user_input):
-        outfit = recommend_outfit(weather_info=weather_info, occasion=user_input)
+        outfit = recommend_outfit(weather_info=weather_info, occasion=user_input, gender=preferred_gender)
         if outfit:
             print("AI: Here are actual catalog items from your wardrobe:")
             print(format_outfit(outfit))
