@@ -137,11 +137,16 @@ def recommend_outfit(weather_info=None, occasion=None, gender="Unisex"):
     usage = None
     if occasion:
         text = occasion.lower()
-        if "formal" in text:
-            usage = "Formal"
+        # Treat work/meeting/professional/business/interview/presentation as formal
+        if any(k in text for k in ["formal", "professional", "work", "meeting", "business", "interview", "presentation"]):
+            # Allow explicit "business casual" to be treated as casual
+            if "business casual" in text or "business-casual" in text:
+                usage = "Casual"
+            else:
+                usage = "Formal"
         elif "casual" in text:
             usage = "Casual"
-        elif "sports" in text or "sport" in text:
+        elif "sports" in text or "sport" in text or "gym" in text:
             usage = "Sports"
         elif "ethnic" in text:
             usage = "Ethnic"
@@ -175,8 +180,19 @@ def recommend_outfit(weather_info=None, occasion=None, gender="Unisex"):
             )
 
         if candidates:
-            item = sorted(candidates, key=lambda x: (x.get('usage', ''), x.get('articleType', ''), x.get('baseColour', '')))[0]
-            item = dict(item)
+            # Prefer items whose usage matches the requested usage (e.g., Formal)
+            chosen = None
+            if usage:
+                for c in candidates:
+                    if usage.lower() in c.get('usage', '').lower():
+                        chosen = c
+                        break
+
+            # Fallback to deterministic choice when no exact usage match
+            if chosen is None:
+                chosen = sorted(candidates, key=lambda x: (x.get('usage', ''), x.get('articleType', ''), x.get('baseColour', '')))[0]
+
+            item = dict(chosen)
             item['link'] = links.get(item['id'])
             item['component'] = part_name
             outfit.append(item)
