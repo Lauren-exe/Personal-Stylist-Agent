@@ -6,7 +6,13 @@ except ImportError:
     OpenAI = None
 
 from weather import get_weather, get_coordinates, get_coordinates_with_fallback, normalize_location_input
-from wardrobe import get_wardrobe_context, get_available_styles_by_season, get_available_items_by_type
+from wardrobe import (
+    get_wardrobe_context,
+    get_available_styles_by_season,
+    get_available_items_by_type,
+    recommend_outfit,
+    format_outfit,
+)
 
 
 # Read API key and optional base URL from environment
@@ -21,8 +27,6 @@ else:
         print("Warning: openai package not installed; running in offline mock mode.")
     else:
         print("Warning: OPENAI_API_KEY not set — running in offline mock mode.")
-
-from weather import get_weather, get_coordinates, normalize_location_input
 
 
 def resolve_location(initial_location, client):
@@ -90,6 +94,12 @@ def resolve_location(initial_location, client):
     return resolve_location(alternate, client)
 
 
+def should_use_local_recommender(user_input):
+    keywords = ["outfit", "what to wear", "wear", "style", "recommend", "suggest", "clothing", "wardrobe"]
+    text = user_input.lower()
+    return any(keyword in text for keyword in keywords)
+
+
 # Ask user for location
 print("Where are you located? (Default: Berkeley, California)")
 user_location = input("Enter your location (or press Enter for Berkeley): ").strip()
@@ -129,9 +139,17 @@ while True:
     if user_input.lower() == "quit":
         break
 
+    if should_use_local_recommender(user_input):
+        outfit = recommend_outfit(weather_info=weather_info, occasion=user_input)
+        if outfit:
+            print("AI: Here are actual catalog items from your wardrobe:")
+            print(format_outfit(outfit))
+        else:
+            print("AI: I couldn't find matching items in the catalog.")
+        continue
+
     if client is None:
-        # Simple offline fallback so the script remains usable without an API key
-        if "outfit" in user_input.lower() or "help" in user_input.lower():
+        if "help" in user_input.lower():
             mock = f"(mock) Based on the weather ({weather_info}) and your wardrobe, I'd suggest wearing something appropriate for the conditions."
         else:
             mock = f"(mock) I received: {user_input}"

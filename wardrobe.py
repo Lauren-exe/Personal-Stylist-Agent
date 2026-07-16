@@ -86,6 +86,128 @@ def get_available_items_by_type(article_type, limit=10):
     ]
     return type_items[:limit]
 
+
+def _parse_temperature(weather_info):
+    if not weather_info:
+        return None
+    import re
+    match = re.search(r"(-?\d+\.?\d*)\s*°[FC]", weather_info)
+    if match:
+        try:
+            return float(match.group(1))
+        except ValueError:
+            return None
+    return None
+
+
+def _infer_season(weather_info):
+    temp = _parse_temperature(weather_info)
+    if temp is None:
+        return None
+    if temp <= 50:
+        return "Winter"
+    if temp <= 65:
+        return "Fall"
+    if temp <= 75:
+        return "Spring"
+    return "Summer"
+
+
+def _match_items(styles, season=None, usage=None, gender=None, article_types=None, max_items=10):
+    candidates = []
+    for item in styles.values():
+        if season and item.get('season', '').lower() != season.lower():
+            continue
+        if usage and usage.lower() not in item.get('usage', '').lower():
+            continue
+        if gender and gender.lower() != "unisex" and item.get('gender', '').lower() not in [gender.lower(), "unisex"]:
+            continue
+        if article_types and item.get('articleType', '').lower() not in [a.lower() for a in article_types]:
+            continue
+        candidates.append(item)
+    return candidates[:max_items]
+
+
+def recommend_outfit(weather_info=None, occasion=None, gender="Unisex"):
+    """Return a set of outfit items from the available catalog."""
+    styles = load_styles_catalog()
+    links = load_clothes_links()
+    season = _infer_season(weather_info) or "Summer"
+
+    usage = None
+    if occasion:
+        text = occasion.lower()
+        if "formal" in text:
+            usage = "Formal"
+        elif "casual" in text:
+            usage = "Casual"
+        elif "sports" in text or "sport" in text:
+            usage = "Sports"
+        elif "ethnic" in text:
+            usage = "Ethnic"
+
+    outfit_parts = [
+        ("Top", ["Shirts", "Tshirts", "Kurtas", "Tops", "Sweatshirts", "Blazers", "Jackets", "Rain Jacket", "Waistcoat", "Dress", "Dresses"]),
+        ("Bottom", ["Jeans", "Track Pants", "Shorts", "Skirts", "Sarees"]),
+        ("Footwear", ["Shoes", "Formal Shoes", "Casual Shoes", "Sports Shoes", "Sandals", "Flip Flops", "Heels"]),
+        ("Accessory", ["Bags", "Watches", "Belts", "Jewellery", "Sunglasses", "Scarves", "Bracelets", "Pendant", "Wallets"]),
+    ]
+
+    outfit = []
+    for part_name, article_types in outfit_parts:
+        candidates = _match_items(
+            styles,
+            season=season,
+            usage=usage,
+            gender=gender,
+            article_types=article_types,
+            max_items=20
+        )
+
+        if not candidates:
+            candidates = _match_items(
+                styles,
+                season=None,
+                usage=usage,
+                gender=gender,
+                article_types=article_types,
+                max_items=20
+            )
+
+        if candidates:
+            item = sorted(candidates, key=lambda x: (x.get('usage', ''), x.get('articleType', ''), x.get('baseColour', '')))[0]
+            item = dict(item)
+            item['link'] = links.get(item['id'])
+            item['component'] = part_name
+            outfit.append(item)
+
+    return outfit
+
+
+def format_outfit(outfit):
+    if not outfit:
+        return "No catalog outfit could be found."
+
+    lines = []
+    for item in outfit:
+        description = f"{item.get('component')}: {item.get('productDisplayName')}"
+        details = []
+        if item.get('articleType'):
+            details.append(item['articleType'])
+        if item.get('baseColour'):
+            details.append(item['baseColour'])
+        if item.get('season'):
+            details.append(item['season'])
+        if item.get('usage'):
+            details.append(item['usage'])
+        if details:
+            description += f" ({', '.join(details)})"
+        if item.get('link'):
+            description += f" - {item['link']}"
+        lines.append(description)
+    return "\n".join(lines)
+
+
 if __name__ == "__main__":
     print(get_wardrobe_context())
 
