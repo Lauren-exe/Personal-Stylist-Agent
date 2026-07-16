@@ -1,6 +1,11 @@
 import os
-from openai import OpenAI
-from weather import get_weather, get_coordinates
+
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None
+
+from weather import get_weather, get_coordinates, get_coordinates_with_fallback, normalize_location_input
 from wardrobe import get_wardrobe_context, get_available_styles_by_season, get_available_items_by_type
 
 
@@ -8,24 +13,87 @@ from wardrobe import get_wardrobe_context, get_available_styles_by_season, get_a
 api_key = os.getenv("OPENAI_API_KEY")
 base_url = os.getenv("OPENAI_BASE_URL", "https://api.groq.com/openai/v1")
 
-if api_key:
+if api_key and OpenAI is not None:
     client = OpenAI(api_key=api_key, base_url=base_url)
 else:
     client = None
-    print("Warning: OPENAI_API_KEY not set — running in offline mock mode.")
+    if OpenAI is None:
+        print("Warning: openai package not installed; running in offline mock mode.")
+    else:
+        print("Warning: OPENAI_API_KEY not set — running in offline mock mode.")
+
+from weather import get_weather, get_coordinates, normalize_location_input
+
+
+def resolve_location(initial_location, client):
+    """Resolve a user-provided location and confirm it before using it."""
+    if not initial_location:
+        return 37.8715, -122.2730, "Berkeley, California"
+
+    normalized = normalize_location_input(initial_location)
+    if normalized is None:
+        print("I couldn't understand that location. Please enter a city or place name again.")
+        alternate = input("Enter a different city or place: ").strip()
+        if not alternate:
+            return 37.8715, -122.2730, "Berkeley, California"
+        return resolve_location(alternate, client)
+
+    if normalized.lower() != initial_location.strip().lower():
+        print(f"Did you mean: {normalized}?")
+
+    latitude, longitude, location_name = get_coordinates_with_fallback(normalized, client)
+    if latitude is None:
+        print(f"I couldn't find location '{normalized}'. Please enter a city or place name again.")
+        alternate = input("Enter a different city or place: ").strip()
+        if not alternate:
+            return 37.8715, -122.2730, "Berkeley, California"
+        return resolve_location(alternate, client)
+
+    if client is None:
+        confirmation = input(f"I found '{location_name}'. Is that the right place? [Y/n]: ").strip().lower()
+        while confirmation not in {"", "y", "yes", "n", "no"}:
+            confirmation = input("Please answer yes or no: ").strip().lower()
+
+        if confirmation in {"", "y", "yes"}:
+            return latitude, longitude, location_name
+
+        alternate = input("Enter a different city or place: ").strip()
+        if not alternate:
+            return 37.8715, -122.2730, "Berkeley, California"
+        return resolve_location(alternate, client)
+
+    try:
+        prompt = (
+            f"The user typed '{initial_location}'. Reply with one short sentence naming the most likely place "
+            f"and asking for confirmation."
+        )
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        ai_reply = response.choices[0].message.content.strip()
+        print(f"AI location check: {ai_reply}")
+    except Exception as e:
+        print(f"AI location check unavailable ({e}). Using the geocoded result.")
+        ai_reply = f"I found {location_name}."
+
+    confirmation = input("Is that the right place? [Y/n]: ").strip().lower()
+    while confirmation not in {"", "y", "yes", "n", "no"}:
+        confirmation = input("Please answer yes or no: ").strip().lower()
+
+    if confirmation in {"", "y", "yes"}:
+        return latitude, longitude, location_name
+
+    alternate = input("Enter a different city or place: ").strip()
+    if not alternate:
+        return 37.8715, -122.2730, "Berkeley, California"
+    return resolve_location(alternate, client)
+
 
 # Ask user for location
 print("Where are you located? (Default: Berkeley, California)")
 user_location = input("Enter your location (or press Enter for Berkeley): ").strip()
-
-if not user_location:
-    user_location = "Berkeley, California"
-    latitude, longitude, location_name = 37.8715, -122.2730, "Berkeley, California"
-else:
-    latitude, longitude, location_name = get_coordinates(user_location)
-    if latitude is None:
-        print(f"Could not find location '{user_location}'. Using Berkeley as default.")
-        latitude, longitude, location_name = 37.8715, -122.2730, "Berkeley, California"
+latitude, longitude, location_name = resolve_location(user_location, client)
 
 # Get weather for the user's location
 print(f"\nFetching weather for {location_name}...")
