@@ -26,7 +26,7 @@ from weather import get_weather, get_coordinates, normalize_location_input
 
 
 def resolve_location(initial_location, client):
-    """Resolve a user-provided location and confirm it before using it."""
+    """Resolve a user-provided location and ask again if it is unclear."""
     if not initial_location:
         return 37.8715, -122.2730, "Berkeley, California"
 
@@ -38,46 +38,15 @@ def resolve_location(initial_location, client):
             return 37.8715, -122.2730, "Berkeley, California"
         return resolve_location(alternate, client)
 
-    if normalized.lower() != initial_location.strip().lower():
-        print(f"Did you mean: {normalized}?")
-
-    latitude, longitude, location_name = get_coordinates_with_fallback(normalized, client)
+    latitude, longitude, location_name = get_coordinates(normalized)
     if latitude is None:
-        print(f"I couldn't find location '{normalized}'. Please enter a city or place name again.")
+        print(f"I couldn't confidently place '{initial_location}'. Please enter a city or place name again.")
         alternate = input("Enter a different city or place: ").strip()
         if not alternate:
             return 37.8715, -122.2730, "Berkeley, California"
         return resolve_location(alternate, client)
 
-    if client is None:
-        confirmation = input(f"I found '{location_name}'. Is that the right place? [Y/n]: ").strip().lower()
-        while confirmation not in {"", "y", "yes", "n", "no"}:
-            confirmation = input("Please answer yes or no: ").strip().lower()
-
-        if confirmation in {"", "y", "yes"}:
-            return latitude, longitude, location_name
-
-        alternate = input("Enter a different city or place: ").strip()
-        if not alternate:
-            return 37.8715, -122.2730, "Berkeley, California"
-        return resolve_location(alternate, client)
-
-    try:
-        prompt = (
-            f"The user typed '{initial_location}'. Reply with one short sentence naming the most likely place "
-            f"and asking for confirmation."
-        )
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        ai_reply = response.choices[0].message.content.strip()
-        print(f"AI location check: {ai_reply}")
-    except Exception as e:
-        print(f"AI location check unavailable ({e}). Using the geocoded result.")
-        ai_reply = f"I found {location_name}."
-
-    confirmation = input("Is that the right place? [Y/n]: ").strip().lower()
+    confirmation = input(f"I found '{location_name}'. Is that the right place? [Y/n]: ").strip().lower()
     while confirmation not in {"", "y", "yes", "n", "no"}:
         confirmation = input("Please answer yes or no: ").strip().lower()
 
