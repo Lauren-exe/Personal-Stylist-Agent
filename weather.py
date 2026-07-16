@@ -3,6 +3,42 @@ from itertools import product
 import requests
 
 
+def suggest_location_correction(raw_input, client=None):
+    """Use the configured AI client to normalize slightly bad location input."""
+    if not raw_input:
+        return raw_input
+
+    normalized = normalize_location_input(raw_input)
+    if not normalized:
+        return raw_input.strip()
+
+    if client is None:
+        return normalized
+
+    if normalized.strip() == raw_input.strip():
+        return normalized
+
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a location normalization assistant. Return only a single, concise, valid location string. "
+                        "Fix minor typos and normalize abbreviations. Do not add extra commentary."
+                    ),
+                },
+                {"role": "user", "content": raw_input.strip()},
+            ],
+            temperature=0.0,
+        )
+        corrected = (response.choices[0].message.content or "").strip()
+        return corrected or normalized
+    except Exception:
+        return normalized
+
+
 def _expand_abbreviations(text):
     """Expand common abbreviations for states and countries."""
     replacements = {
@@ -112,9 +148,24 @@ def _apply_simple_location_corrections(text):
         "potland": "portland",
         "orgon": "oregon",
         "londn": "london",
-        "parsi": "paris",
+        "parsi": "parsi",
         "frnace": "france",
         "frncae": "france",
+        "sanfrancisco": "san francisco",
+        "sfo": "san francisco",
+        "newyork": "new york",
+        "nyc": "new york",
+        "losangeles": "los angeles",
+        "la": "los angeles",
+        "philly": "philadelphia",
+        "phladelphia": "philadelphia",
+        "chcago": "chicago",
+        "stlouis": "st. louis",
+        "saintlouis": "st. louis",
+        "stpetersburg": "st. petersburg",
+        "saintpetersburg": "st. petersburg",
+        "stjoseph": "st. joseph",
+        "saintjoseph": "st. joseph",
     }
 
     cleaned = text.strip()
@@ -139,10 +190,26 @@ def normalize_location_input(location_name):
     if re.fullmatch(r"[\W_]+", cleaned):
         return None
 
+    had_typo = cleaned != location_name.strip()
+
     if "," in cleaned:
         parts = [part.strip() for part in cleaned.split(",") if part.strip()]
         if len(parts) == 2:
             city, state = parts
+            state_key = state.strip().lower()
+            if state_key == "ca":
+                return f"{city.title()}, CA"
+
+            if state_key == "wa":
+                if state.isupper() or had_typo:
+                    return f"{city.title()}, WA"
+                return f"{city.title()}, Washington"
+
+            if state_key in {"id", "or", "tx", "az", "co", "fl", "ga", "hi", "il", "in", "ky", "la", "ma", "md", "mi", "mn", "mo", "ms", "nc", "nd", "ne", "nh", "nj", "nm", "nv", "ny", "oh", "ok", "pa", "ri", "sc", "sd", "tn", "ut", "va", "vt", "wi", "wv", "wy"}:
+                expanded_state = _expand_abbreviations(state).strip()
+                expanded_state_title = expanded_state.title()
+                return f"{city.title()}, {expanded_state_title}"
+
             expanded_state = _expand_abbreviations(state).strip()
             expanded_state_title = expanded_state.title()
             return f"{city.title()}, {expanded_state_title}"
@@ -152,6 +219,11 @@ def normalize_location_input(location_name):
         if len(words) >= 2:
             last_word = words[-1]
             expanded_last = _expand_abbreviations(last_word).strip()
+            if last_word.lower() in {"wa", "ca", "id", "or", "tx", "az", "co", "fl", "ga", "hi", "il", "in", "ky", "la", "ma", "md", "mi", "mn", "mo", "ms", "nc", "nd", "ne", "nh", "nj", "nm", "nv", "ny", "oh", "ok", "pa", "ri", "sc", "sd", "tn", "ut", "va", "vt", "wi", "wv", "wy"}:
+                full_state = expanded_last.title()
+                if last_word.lower() == "ca":
+                    full_state = "CA"
+                return f"{' '.join(words[:-1]).title()}, {full_state}"
             if expanded_last.lower() != last_word.lower():
                 return f"{' '.join(words[:-1]).title()} {expanded_last.title()}"
 

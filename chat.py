@@ -5,7 +5,13 @@ try:
 except ImportError:
     OpenAI = None
 
-from weather import get_weather, get_coordinates, get_coordinates_with_fallback, normalize_location_input
+from weather import (
+    get_weather,
+    get_coordinates,
+    get_coordinates_with_fallback,
+    normalize_location_input,
+    suggest_location_correction,
+)
 from wardrobe import (
     get_wardrobe_context,
     get_available_styles_by_season,
@@ -41,6 +47,18 @@ def resolve_location(initial_location, client):
         if not alternate:
             return 37.8715, -122.2730, "Berkeley, California"
         return resolve_location(alternate, client)
+
+    if normalized != initial_location.strip() and client is not None:
+        suggested = suggest_location_correction(initial_location, client)
+        if suggested and suggested != initial_location.strip():
+            print(f"Using a cleaner location match: {suggested}")
+            normalized = suggested
+
+    if client is not None and normalized is not None and normalized != initial_location.strip():
+        suggested = suggest_location_correction(initial_location, client)
+        if suggested and suggested != initial_location.strip():
+            print(f"Using a cleaner location match: {suggested}")
+            normalized = suggested
 
     latitude, longitude, location_name = get_coordinates(normalized)
     if latitude is None:

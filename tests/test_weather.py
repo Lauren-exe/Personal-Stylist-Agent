@@ -1,6 +1,7 @@
 import unittest
+from types import SimpleNamespace
 
-from weather import normalize_location_input
+from weather import normalize_location_input, suggest_location_correction
 
 
 class NormalizeLocationInputTests(unittest.TestCase):
@@ -25,6 +26,21 @@ class NormalizeLocationInputTests(unittest.TestCase):
 
     def test_returns_none_for_unhelpful_input(self):
         self.assertIsNone(normalize_location_input("????????"))
+
+    def test_suggests_a_cleaner_location_with_ai_client(self):
+        class StubClient:
+            class _Chat:
+                class _Completions:
+                    def create(self, model, messages, temperature=0.0):
+                        return SimpleNamespace(
+                            choices=[SimpleNamespace(message=SimpleNamespace(content="Seattle, Washington"))]
+                        )
+
+                completions = _Completions()
+
+            chat = _Chat()
+
+        self.assertEqual(suggest_location_correction("seatlle wa", StubClient()), "Seattle, Washington")
 
 
 if __name__ == "__main__":
