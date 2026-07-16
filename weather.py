@@ -3,100 +3,6 @@ from itertools import product
 import requests
 
 
-def _distance(a, b):
-    """Simple Levenshtein-style distance for tiny typo correction."""
-    if a == b:
-        return 0
-    if not a:
-        return len(b)
-    if not b:
-        return len(a)
-
-    prev = list(range(len(b) + 1))
-    for i, ca in enumerate(a, start=1):
-        curr = [i]
-        for j, cb in enumerate(b, start=1):
-            cost = 0 if ca == cb else 1
-            curr.append(min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost))
-        prev = curr
-    return prev[-1]
-
-
-def _suggest_word(word, common_words):
-    """Return a likely correction for a single word using a small candidate set."""
-    if not word:
-        return word
-    word_lower = word.lower()
-    if word_lower in common_words:
-        return word_lower
-
-    best_word = word_lower
-    best_dist = float("inf")
-    for candidate in common_words:
-        dist = _distance(word_lower, candidate)
-        if dist < best_dist:
-            best_dist = dist
-            best_word = candidate
-    if best_dist <= 2:
-        return best_word
-    return word_lower
-
-
-def _word_variants(word):
-    """Generate a small set of likely variants for a single word."""
-    base = word.lower().strip(".,;:-")
-    if not base:
-        return [word]
-
-    variants = {base}
-    vowels = "aeiou"
-
-    # Transposition of adjacent letters
-    for index in range(len(base) - 1):
-        swapped = base[:index] + base[index + 1] + base[index] + base[index + 2:]
-        variants.add(swapped)
-
-    # Missing-vowel insertions
-    for index in range(len(base) + 1):
-        for vowel in vowels:
-            variants.add(base[:index] + vowel + base[index:])
-
-    # Common one-letter typo patterns
-    for index in range(len(base)):
-        for vowel in vowels:
-            variant = base[:index] + vowel + base[index + 1:]
-            variants.add(variant)
-
-    # Drop one letter if the word is longer than 3
-    if len(base) > 3:
-        for index in range(len(base)):
-            variants.add(base[:index] + base[index + 1:])
-
-    return list(variants)[:10]
-
-
-def _phrase_variants(text):
-    """Create a short list of candidate phrases from a user-entered location."""
-    cleaned = re.sub(r"\s+", " ", text.strip())
-    cleaned = cleaned.replace(",", " , ")
-    cleaned = cleaned.strip()
-
-    words = [word.strip(".,;:-") for word in cleaned.split() if word.strip(".,;:-")]
-    if not words:
-        return []
-
-    variant_lists = [_word_variants(word) for word in words]
-    candidates = set()
-
-    for combo in product(*variant_lists):
-        phrase = " ".join(combo)
-        candidates.add(phrase)
-        candidates.add(phrase.replace(" ", ", "))
-        candidates.add(phrase.replace(" ", "-"))
-
-    return list(candidates)
-
-
 def _expand_abbreviations(text):
     """Expand common abbreviations for states and countries."""
     replacements = {
@@ -170,12 +76,58 @@ def _expand_abbreviations(text):
     return " ".join(words)
 
 
-def normalize_location_input(location_name):
-    """Apply simple normalization and typo correction to a city/state input.
+def _format_location_label(result):
+    """Build a readable label using city, region, and country in that order."""
+    parts = []
 
-    Returns a cleaned string when the input looks understandable, or None when it
-    is too ambiguous to use safely.
-    """
+    city = (result.get("name") or "").strip()
+    if city:
+        parts.append(city)
+
+    admin1 = (result.get("admin1") or "").strip()
+    if admin1 and admin1.lower() != city.lower():
+        parts.append(admin1)
+
+    country = (result.get("country") or "").strip()
+    if country:
+        parts.append(country)
+
+    return ", ".join(parts)
+
+
+def _apply_simple_location_corrections(text):
+    """Apply a small set of common typo fixes for place names."""
+    if not text:
+        return text
+
+    corrections = {
+        "berkely": "berkeley",
+        "berkley": "berkeley",
+        "seatlle": "seattle",
+        "sealtte": "seattle",
+        "seattl": "seattle",
+        "snafransico": "san francisco",
+        "sanfransisco": "san francisco",
+        "sanfransico": "san francisco",
+        "potland": "portland",
+        "orgon": "oregon",
+        "londn": "london",
+        "parsi": "paris",
+        "frnace": "france",
+        "frncae": "france",
+    }
+
+    cleaned = text.strip()
+    for typo, fixed in corrections.items():
+        cleaned = re.sub(rf"\b{re.escape(typo)}\b", fixed, cleaned, flags=re.IGNORECASE)
+
+    cleaned = cleaned.replace(",", ", ")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
+
+def normalize_location_input(location_name):
+    """Apply a simple, conservative normalization for city/state input."""
     if not location_name:
         return None
 
@@ -183,61 +135,25 @@ def normalize_location_input(location_name):
     if not cleaned:
         return None
 
-    cleaned = re.sub(r"\s+", " ", cleaned)
-    cleaned = cleaned.replace(",", ", ")
-    cleaned = cleaned.strip()
-
+    cleaned = _apply_simple_location_corrections(cleaned)
     if re.fullmatch(r"[\W_]+", cleaned):
         return None
 
-    # Preserve obvious state abbreviations and common place names.
-    candidate_forms = []
-
-    # Keep the original form first.
-    candidate_forms.append(cleaned)
-
-    # Add a version with expanded abbreviations, but only when it seems helpful.
-    expanded = _expand_abbreviations(cleaned)
-    if expanded != cleaned:
-        candidate_forms.append(expanded)
-
-    # Add a compact comma-separated version for city,state inputs.
     if "," in cleaned:
         parts = [part.strip() for part in cleaned.split(",") if part.strip()]
         if len(parts) == 2:
             city, state = parts
-            compact = f"{city} {state}".strip()
-            candidate_forms.append(compact)
-            candidate_forms.append(f"{city}, {state}")
+            expanded_state = _expand_abbreviations(state).strip()
+            expanded_state_title = expanded_state.title()
+            return f"{city.title()}, {expanded_state_title}"
 
-    # Avoid over-aggressive variants that can corrupt valid names.
-    for variant in _phrase_variants(cleaned):
-        normalized_variant = re.sub(r"\s+", " ", variant).strip()
-        if normalized_variant and normalized_variant not in candidate_forms:
-            candidate_forms.append(normalized_variant)
-
-    seen = []
-    for candidate in candidate_forms:
-        if not candidate or candidate in seen:
-            continue
-        seen.append(candidate)
-
-    for candidate in seen:
-        if re.fullmatch(r"[\W_]+", candidate):
-            continue
-        if len(candidate) < 2:
-            continue
-
-        parts = [p.strip() for p in candidate.split(",") if p.strip()]
-        if len(parts) == 2:
-            city = parts[0].strip()
-            state = parts[1].strip()
-            if state.isupper() and len(state) <= 5:
-                return f"{city.title()}, {state.upper()}"
-            return f"{city.title()}, {state.title()}"
-
-        if len(parts) == 1:
-            return candidate.title()
+    if " " in cleaned:
+        words = [word for word in cleaned.split() if word]
+        if len(words) >= 2:
+            last_word = words[-1]
+            expanded_last = _expand_abbreviations(last_word).strip()
+            if expanded_last.lower() != last_word.lower():
+                return f"{' '.join(words[:-1]).title()} {expanded_last.title()}"
 
     return cleaned.title()
 
@@ -333,9 +249,8 @@ def get_coordinates(location_name):
                 result = data["results"][0]
                 lat = result.get("latitude")
                 lon = result.get("longitude")
-                city = result.get("name")
-                country = result.get("country")
-                return lat, lon, f"{city}, {country}"
+                place = _format_location_label(result)
+                return lat, lon, place
         except Exception as e:
             print(f"Geocoding error for '{candidate}': {e}")
 
