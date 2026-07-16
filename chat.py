@@ -1,7 +1,8 @@
 import os
 from openai import OpenAI
-from weather import get_weather
+from weather import get_weather, get_coordinates
 from wardrobe import get_wardrobe_context, get_available_styles_by_season, get_available_items_by_type
+
 
 # Read API key and optional base URL from environment
 api_key = os.getenv("OPENAI_API_KEY")
@@ -13,10 +14,25 @@ else:
     client = None
     print("Warning: OPENAI_API_KEY not set — running in offline mock mode.")
 
-# Get weather
-weather_info = get_weather()
+# Ask user for location
+print("Where are you located? (Default: Berkeley, California)")
+user_location = input("Enter your location (or press Enter for Berkeley): ").strip()
+
+if not user_location:
+    user_location = "Berkeley, California"
+    latitude, longitude, location_name = 37.8715, -122.2730, "Berkeley, California"
+else:
+    latitude, longitude, location_name = get_coordinates(user_location)
+    if latitude is None:
+        print(f"Could not find location '{user_location}'. Using Berkeley as default.")
+        latitude, longitude, location_name = 37.8715, -122.2730, "Berkeley, California"
+
+# Get weather for the user's location
+print(f"\nFetching weather for {location_name}...")
+weather_info = get_weather(latitude, longitude)
 if not weather_info:
     weather_info = "Weather data unavailable"
+
 
 # Get catalog context
 wardrobe_context = get_wardrobe_context()
@@ -25,7 +41,7 @@ wardrobe_context = get_wardrobe_context()
 system_prompt = f"""You are a helpful personal stylist AI assistant. 
 You help users with clothing and fashion advice.
 
-Current weather in Berkeley, CA: {weather_info}
+Current weather in {location_name}: {weather_info}
 
 {wardrobe_context}
 
@@ -64,3 +80,4 @@ while True:
         print("AI:", response.choices[0].message.content)
     except Exception as e:
         print("AI: (error calling API)", e)
+
