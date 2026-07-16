@@ -1,0 +1,559 @@
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+.psa {
+  --ink: #211f1c;
+  --stone: #e9e2d2;
+  --stone-2: #ddd4bf;
+  --panel: #fbf8f1;
+  --denim: #33455c;
+  --denim-2: #4c6683;
+  --mustard: #bd8a2e;
+  --thread: #8f7f68;
+  --sage: #626f4f;
+  --rust: #9c4f34;
+  font-family: 'Inter', sans-serif;
+  color: var(--ink);
+  background: var(--stone);
+  min-height: 640px;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.psa * { box-sizing: border-box; }
+.psa .serif { font-family: 'Fraunces', serif; }
+.psa .mono { font-family: 'IBM Plex Mono', monospace; }
+
+.psa-texture {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0.05;
+  background-image: radial-gradient(var(--ink) 0.6px, transparent 0.6px);
+  background-size: 14px 14px;
+}
+
+/* ---------- header ---------- */
+.psa-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 28px; border-bottom: 1px solid var(--stone-2);
+  position: relative; z-index: 2;
+}
+.psa-brand { display: flex; align-items: baseline; gap: 10px; }
+.psa-brand .mark {
+  width: 26px; height: 26px; border: 1.5px solid var(--ink); border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 13px;
+  font-family: 'Fraunces', serif; font-style: italic;
+}
+.psa-brand .title { font-size: 19px; letter-spacing: 0.01em; font-weight: 600; }
+.psa-eyebrow {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--thread);
+}
+.psa-reset {
+  font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--thread); background: none; border: 1px solid var(--stone-2);
+  padding: 6px 10px; border-radius: 3px; cursor: pointer;
+}
+.psa-reset:hover { border-color: var(--thread); color: var(--ink); }
+
+/* ---------- setup screen ---------- */
+.psa-setup {
+  position: relative; z-index: 2;
+  display: flex; align-items: center; justify-content: center;
+  min-height: 560px; padding: 40px 20px;
+}
+.psa-ticket {
+  width: 100%; max-width: 440px; background: var(--panel);
+  border: 1px solid var(--stone-2); border-radius: 6px;
+  padding: 32px 30px 26px; position: relative;
+  box-shadow: 0 18px 40px -22px rgba(33,31,28,0.35);
+}
+.psa-ticket::before {
+  content: ''; position: absolute; top: -9px; left: 50%; transform: translateX(-50%);
+  width: 16px; height: 16px; background: var(--stone); border: 1px solid var(--stone-2); border-radius: 50%;
+}
+.psa-ticket-head { text-align: center; margin-bottom: 22px; }
+.psa-ticket-head .serif { font-size: 24px; font-weight: 500; margin: 6px 0 4px; }
+.psa-ticket-head .sub { font-size: 12.5px; color: var(--thread); max-width: 320px; margin: 0 auto; line-height: 1.5; }
+
+.psa-field { margin-bottom: 18px; }
+.psa-label {
+  display: block; font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--thread); margin-bottom: 7px;
+}
+.psa-input {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--stone-2); border-radius: 3px;
+  background: #fff; font-family: 'Inter', sans-serif; font-size: 14px; color: var(--ink);
+}
+.psa-input:focus { outline: none; border-color: var(--denim); }
+
+.psa-chiprow { display: flex; gap: 8px; flex-wrap: wrap; }
+.psa-chip {
+  padding: 8px 14px; border: 1px solid var(--stone-2); border-radius: 20px; background: #fff;
+  font-size: 12.5px; cursor: pointer; color: var(--ink); transition: all .12s ease;
+}
+.psa-chip:hover { border-color: var(--denim-2); }
+.psa-chip.active { background: var(--denim); border-color: var(--denim); color: #fff; }
+
+.psa-slider-row { display: flex; align-items: center; gap: 12px; }
+.psa-slider-row input[type=range] { flex: 1; accent-color: var(--denim); }
+.psa-temp-readout {
+  font-family: 'IBM Plex Mono', monospace; font-size: 15px; min-width: 52px; text-align: right;
+}
+
+.psa-begin {
+  width: 100%; margin-top: 6px; padding: 12px; border: none; border-radius: 3px;
+  background: var(--ink); color: var(--panel); font-family: 'Fraunces', serif; font-size: 15px;
+  font-weight: 500; cursor: pointer; letter-spacing: 0.01em; transition: transform .1s ease;
+}
+.psa-begin:hover { background: var(--denim); }
+.psa-begin:active { transform: scale(0.99); }
+
+/* ---------- main app ---------- */
+.psa-app { display: none; position: relative; z-index: 2; }
+.psa-app.show { display: grid; grid-template-columns: 240px 1fr; min-height: 560px; }
+
+.psa-sidebar {
+  border-right: 1px solid var(--stone-2); padding: 22px 18px; display: flex; flex-direction: column; gap: 20px;
+}
+.psa-side-block .psa-label { margin-bottom: 8px; }
+.psa-weather-card {
+  background: var(--panel); border: 1px solid var(--stone-2); border-radius: 5px; padding: 12px 14px;
+}
+.psa-weather-card .loc { font-family: 'Fraunces', serif; font-size: 15px; margin-bottom: 2px; }
+.psa-weather-card .temp { font-family: 'IBM Plex Mono', monospace; font-size: 22px; color: var(--denim); }
+.psa-weather-card .cond { font-size: 11.5px; color: var(--thread); text-transform: capitalize; }
+
+.psa-pref-line { display: flex; justify-content: space-between; font-size: 12.5px; padding: 5px 0; border-bottom: 1px dashed var(--stone-2); }
+.psa-pref-line span:first-child { color: var(--thread); }
+
+.psa-prompts { display: flex; flex-direction: column; gap: 7px; }
+.psa-prompt-btn {
+  text-align: left; background: var(--panel); border: 1px solid var(--stone-2); border-radius: 4px;
+  padding: 8px 10px; font-size: 12px; cursor: pointer; color: var(--ink); line-height: 1.3;
+}
+.psa-prompt-btn:hover { border-color: var(--denim-2); background: #fff; }
+
+/* ---------- chat ---------- */
+.psa-chat-col { display: flex; flex-direction: column; height: 100%; min-height: 560px; }
+.psa-thread { flex: 1; overflow-y: auto; padding: 22px 28px; display: flex; flex-direction: column; gap: 16px; max-height: 480px; }
+
+.psa-msg { max-width: 78%; }
+.psa-msg.user { align-self: flex-end; }
+.psa-msg.assistant { align-self: flex-start; }
+.psa-bubble { padding: 11px 14px; border-radius: 5px; font-size: 13.5px; line-height: 1.55; }
+.psa-msg.user .psa-bubble { background: var(--mustard); color: #2a1c05; border-top-right-radius: 1px; }
+.psa-msg.assistant .psa-bubble { background: var(--panel); border: 1px solid var(--stone-2); border-left: 3px solid var(--denim); border-top-left-radius: 1px; }
+.psa-who { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--thread); margin-bottom: 4px; }
+.psa-msg.user .psa-who { text-align: right; }
+
+/* look card = swing ticket */
+.psa-look { border: 1px dashed var(--thread); border-radius: 5px; padding: 14px 14px 6px; background: var(--panel); }
+.psa-look-title { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--thread); margin-bottom: 10px; display: flex; justify-content: space-between; }
+.psa-item { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--stone-2); align-items: flex-start; }
+.psa-item:last-child { border-bottom: none; }
+.psa-swatch { width: 13px; height: 13px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.15); margin-top: 3px; flex-shrink: 0; }
+.psa-item-name { font-family: 'Fraunces', serif; font-size: 14px; }
+.psa-item-part { font-family: 'IBM Plex Mono', monospace; font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--denim); }
+.psa-item-meta { font-size: 11.5px; color: var(--thread); margin-top: 1px; }
+
+.psa-typing { font-size: 12px; color: var(--thread); font-style: italic; padding: 0 28px 10px; }
+
+.psa-inputbar {
+  display: flex; gap: 8px; padding: 14px 22px 20px; border-top: 1px solid var(--stone-2);
+}
+.psa-inputbar input {
+  flex: 1; padding: 11px 14px; border: 1px solid var(--stone-2); border-radius: 20px;
+  font-family: 'Inter', sans-serif; font-size: 13.5px;
+}
+.psa-inputbar input:focus { outline: none; border-color: var(--denim); }
+.psa-send {
+  padding: 10px 20px; border: none; border-radius: 20px; background: var(--ink); color: var(--panel);
+  font-size: 13px; cursor: pointer; font-family: 'Fraunces', serif; letter-spacing: 0.01em;
+}
+.psa-send:hover { background: var(--denim); }
+.psa-send:disabled { opacity: 0.4; cursor: default; }
+
+@media (max-width: 640px) {
+  .psa-app.show { grid-template-columns: 1fr; }
+  .psa-sidebar { flex-direction: row; flex-wrap: wrap; border-right: none; border-bottom: 1px solid var(--stone-2); }
+  .psa-prompts { display: none; }
+}
+</style>
+
+<div class="psa">
+  <div class="psa-texture"></div>
+
+  <div class="psa-header">
+    <div class="psa-brand">
+      <div class="mark">S</div>
+      <div class="title">Studio Fit</div>
+    </div>
+    <div class="psa-eyebrow" id="psaEyebrow">Personal Stylist — Session 01</div>
+    <button class="psa-reset" id="psaReset" style="display:none;">Restart</button>
+  </div>
+
+  <!-- SETUP -->
+  <div class="psa-setup" id="psaSetup">
+    <div class="psa-ticket">
+      <div class="psa-ticket-head">
+        <div class="psa-eyebrow">Fitting Intake</div>
+        <div class="serif">Let's set up your session</div>
+        <div class="sub">We'll pull today's weather automatically and match outfits from the catalog to it.</div>
+      </div>
+
+      <div class="psa-field">
+        <label class="psa-label">Clothing preference</label>
+        <div class="psa-chiprow" id="psaGender">
+          <div class="psa-chip" data-g="Men">Masculine</div>
+          <div class="psa-chip" data-g="Women">Feminine</div>
+          <div class="psa-chip active" data-g="Unisex">Unisex</div>
+        </div>
+      </div>
+
+      <button class="psa-begin" id="psaBegin">Begin styling session</button>
+      <div class="sub" id="psaWeatherStatus" style="margin-top:10px; min-height:14px;"></div>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div class="psa-app" id="psaApp">
+    <div class="psa-sidebar">
+      <div class="psa-side-block">
+        <label class="psa-label">Conditions</label>
+        <div class="psa-weather-card">
+          <div class="loc" id="psaSideLoc">Berkeley, California</div>
+          <div class="temp" id="psaSideTemp">64°F</div>
+          <div class="cond" id="psaSideCond">Clear</div>
+        </div>
+      </div>
+      <div class="psa-side-block">
+        <label class="psa-label">Profile</label>
+        <div class="psa-pref-line"><span>Preference</span><span id="psaSideGender">Unisex</span></div>
+        <div class="psa-pref-line"><span>Season read</span><span id="psaSideSeason">Fall</span></div>
+        <div class="psa-pref-line"><span>Catalog</span><span id="psaSideCatalog">34 items</span></div>
+      </div>
+      <div class="psa-side-block">
+        <label class="psa-label">Try asking</label>
+        <div class="psa-prompts">
+          <button class="psa-prompt-btn" data-prompt="What should I wear today?">What should I wear today?</button>
+          <button class="psa-prompt-btn" data-prompt="I need something formal for a work dinner.">Outfit for a work dinner</button>
+          <button class="psa-prompt-btn" data-prompt="Suggest a gym outfit.">Suggest a gym outfit</button>
+          <button class="psa-prompt-btn" data-prompt="What fabrics work best in this weather?">Fabrics for this weather</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="psa-chat-col">
+      <div class="psa-thread" id="psaThread"></div>
+      <div class="psa-typing" id="psaTyping" style="display:none;">stylist is thinking…</div>
+      <div class="psa-inputbar">
+        <input type="text" id="psaInput" placeholder="Ask about an outfit, occasion, or style…" />
+        <button class="psa-send" id="psaSend">Send</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const root = document.currentScript.parentElement;
+
+  // ---------------- sample catalog (mirrors styles.csv / clothes.csv shape) ----------------
+  const CATALOG = [
+    // Tops
+    {id:'10001', productDisplayName:'Navy Blue Oxford Shirt', articleType:'Shirts', baseColour:'Navy Blue', season:'Fall', gender:'Men', usage:'Formal', hex:'#243b5c'},
+    {id:'10002', productDisplayName:'White Crew Tshirt', articleType:'Tshirts', baseColour:'White', season:'Summer', gender:'Unisex', usage:'Casual', hex:'#f2f2ee'},
+    {id:'10003', productDisplayName:'Charcoal Wool Blazer', articleType:'Blazers', baseColour:'Charcoal', season:'Winter', gender:'Men', usage:'Formal', hex:'#3a3a3d'},
+    {id:'10004', productDisplayName:'Rust Linen Kurta', articleType:'Kurtas', baseColour:'Rust', season:'Summer', gender:'Men', usage:'Ethnic', hex:'#9c4f34'},
+    {id:'10005', productDisplayName:'Sage Silk Blouse', articleType:'Tops', baseColour:'Sage', season:'Spring', gender:'Women', usage:'Formal', hex:'#7c8a68'},
+    {id:'10006', productDisplayName:'Grey Fleece Sweatshirt', articleType:'Sweatshirts', baseColour:'Grey', season:'Winter', gender:'Unisex', usage:'Casual', hex:'#8a8a86'},
+    {id:'10007', productDisplayName:'Olive Field Jacket', articleType:'Jackets', baseColour:'Olive', season:'Fall', gender:'Men', usage:'Casual', hex:'#5c6b3f'},
+    {id:'10008', productDisplayName:'Black Wrap Dress', articleType:'Dresses', baseColour:'Black', season:'Fall', gender:'Women', usage:'Formal', hex:'#1c1c1c'},
+    {id:'10009', productDisplayName:'Yellow Rain Jacket', articleType:'Rain Jacket', baseColour:'Yellow', season:'Fall', gender:'Unisex', usage:'Casual', hex:'#d6ac2e'},
+    {id:'10010', productDisplayName:'Cream Cotton Kurta', articleType:'Kurtas', baseColour:'Cream', season:'Summer', gender:'Women', usage:'Ethnic', hex:'#eee2c8'},
+    {id:'10011', productDisplayName:'Denim Trucker Jacket', articleType:'Jackets', baseColour:'Blue', season:'Spring', gender:'Unisex', usage:'Casual', hex:'#3f5a7a'},
+    {id:'10012', productDisplayName:'Maroon Performance Tee', articleType:'Tshirts', baseColour:'Maroon', season:'Summer', gender:'Men', usage:'Sports', hex:'#6e2a2a'},
+
+    // Bottoms
+    {id:'20001', productDisplayName:'Indigo Slim Jeans', articleType:'Jeans', baseColour:'Indigo', season:'Fall', gender:'Men', usage:'Casual', hex:'#2e3f57'},
+    {id:'20002', productDisplayName:'Black Tailored Trousers', articleType:'Jeans', baseColour:'Black', season:'Winter', gender:'Men', usage:'Formal', hex:'#1c1c1c'},
+    {id:'20003', productDisplayName:'Khaki Track Pants', articleType:'Track Pants', baseColour:'Khaki', season:'Summer', gender:'Unisex', usage:'Sports', hex:'#a99a72'},
+    {id:'20004', productDisplayName:'Chambray Denim Shorts', articleType:'Shorts', baseColour:'Blue', season:'Summer', gender:'Unisex', usage:'Casual', hex:'#5f7fa3'},
+    {id:'20005', productDisplayName:'Camel Pencil Skirt', articleType:'Skirts', baseColour:'Camel', season:'Fall', gender:'Women', usage:'Formal', hex:'#b4885a'},
+    {id:'20006', productDisplayName:'Emerald Silk Saree', articleType:'Sarees', baseColour:'Emerald', season:'Summer', gender:'Women', usage:'Ethnic', hex:'#1f6b4f'},
+    {id:'20007', productDisplayName:'Grey Jogger Sweatpants', articleType:'Track Pants', baseColour:'Grey', season:'Winter', gender:'Unisex', usage:'Casual', hex:'#8a8a86'},
+    {id:'20008', productDisplayName:'Floral A-Line Skirt', articleType:'Skirts', baseColour:'Pink', season:'Spring', gender:'Women', usage:'Casual', hex:'#d69aa8'},
+
+    // Footwear
+    {id:'30001', productDisplayName:'Brown Leather Oxfords', articleType:'Formal Shoes', baseColour:'Brown', season:'Fall', gender:'Men', usage:'Formal', hex:'#5b3a24'},
+    {id:'30002', productDisplayName:'White Court Sneakers', articleType:'Casual Shoes', baseColour:'White', season:'Summer', gender:'Unisex', usage:'Casual', hex:'#f2f2ee'},
+    {id:'30003', productDisplayName:'Black Ankle Heels', articleType:'Heels', baseColour:'Black', season:'Fall', gender:'Women', usage:'Formal', hex:'#1c1c1c'},
+    {id:'30004', productDisplayName:'Navy Running Shoes', articleType:'Sports Shoes', baseColour:'Navy Blue', season:'Summer', gender:'Unisex', usage:'Sports', hex:'#243b5c'},
+    {id:'30005', productDisplayName:'Tan Woven Sandals', articleType:'Sandals', baseColour:'Tan', season:'Summer', gender:'Unisex', usage:'Casual', hex:'#c19a6b'},
+    {id:'30006', productDisplayName:'Grey Suede Chelsea Boots', articleType:'Casual Shoes', baseColour:'Grey', season:'Winter', gender:'Men', usage:'Casual', hex:'#8a8a86'},
+    {id:'30007', productDisplayName:'Gold Flip Flops', articleType:'Flip Flops', baseColour:'Gold', season:'Summer', gender:'Unisex', usage:'Casual', hex:'#c9a227'},
+    {id:'30008', productDisplayName:'Burgundy Loafers', articleType:'Formal Shoes', baseColour:'Burgundy', season:'Winter', gender:'Men', usage:'Formal', hex:'#5a2434'},
+
+    // Accessories
+    {id:'40001', productDisplayName:'Brown Leather Belt', articleType:'Belts', baseColour:'Brown', season:'Fall', gender:'Men', usage:'Formal', hex:'#5b3a24'},
+    {id:'40002', productDisplayName:'Steel Chrono Watch', articleType:'Watches', baseColour:'Silver', season:'Fall', gender:'Unisex', usage:'Formal', hex:'#9aa0a6'},
+    {id:'40003', productDisplayName:'Tortoise Sunglasses', articleType:'Sunglasses', baseColour:'Brown', season:'Summer', gender:'Unisex', usage:'Casual', hex:'#5b3a24'},
+    {id:'40004', productDisplayName:'Woven Canvas Tote', articleType:'Bags', baseColour:'Beige', season:'Summer', gender:'Women', usage:'Casual', hex:'#dccdae'},
+    {id:'40005', productDisplayName:'Gold Pendant Necklace', articleType:'Jewellery', baseColour:'Gold', season:'Fall', gender:'Women', usage:'Formal', hex:'#c9a227'},
+    {id:'40006', productDisplayName:'Wool Scarf', articleType:'Scarves', baseColour:'Grey', season:'Winter', gender:'Unisex', usage:'Casual', hex:'#8a8a86'},
+    {id:'40007', productDisplayName:'Black Structured Wallet', articleType:'Wallets', baseColour:'Black', season:'Fall', gender:'Men', usage:'Casual', hex:'#1c1c1c'},
+    {id:'40008', productDisplayName:'Beaded Bracelet Set', articleType:'Bracelets', baseColour:'Multi', season:'Summer', gender:'Women', usage:'Casual', hex:'#b4885a'},
+  ];
+
+  const OUTFIT_PARTS = [
+    ['Top', ['Shirts','Tshirts','Kurtas','Tops','Sweatshirts','Blazers','Jackets','Rain Jacket','Dresses']],
+    ['Bottom', ['Jeans','Track Pants','Shorts','Skirts','Sarees']],
+    ['Footwear', ['Shoes','Formal Shoes','Casual Shoes','Sports Shoes','Sandals','Flip Flops','Heels']],
+    ['Accessory', ['Bags','Watches','Belts','Jewellery','Sunglasses','Scarves','Bracelets','Wallets']],
+  ];
+
+  const STYLE_KEYWORDS = ['outfit','what to wear','wear','style','recommend','suggest','clothing','wardrobe','look'];
+
+  function inferSeason(tempF) {
+    if (tempF <= 50) return 'Winter';
+    if (tempF <= 65) return 'Fall';
+    if (tempF <= 75) return 'Spring';
+    return 'Summer';
+  }
+
+  function inferUsage(text) {
+    const t = text.toLowerCase();
+    if (['formal','professional','work','meeting','business','interview','presentation'].some(k => t.includes(k))) {
+      if (t.includes('business casual')) return 'Casual';
+      return 'Formal';
+    }
+    if (t.includes('casual')) return 'Casual';
+    if (t.includes('sport') || t.includes('gym')) return 'Sports';
+    if (t.includes('ethnic')) return 'Ethnic';
+    return null;
+  }
+
+  function matchItems(season, usage, gender, types) {
+    return CATALOG.filter(item => {
+      if (season && item.season !== season) return false;
+      if (usage && !item.usage.toLowerCase().includes(usage.toLowerCase())) return false;
+      if (gender && gender !== 'Unisex' && item.gender !== gender && item.gender !== 'Unisex') return false;
+      if (types && !types.includes(item.articleType)) return false;
+      return true;
+    });
+  }
+
+  function recommendOutfit(tempF, occasionText, gender) {
+    const season = inferSeason(tempF);
+    const usage = inferUsage(occasionText || '');
+    const outfit = [];
+    for (const [part, types] of OUTFIT_PARTS) {
+      let candidates = matchItems(season, usage, gender, types);
+      if (candidates.length === 0) candidates = matchItems(null, usage, gender, types);
+      if (candidates.length === 0) continue;
+      let chosen = null;
+      if (usage) chosen = candidates.find(c => c.usage.toLowerCase().includes(usage.toLowerCase()));
+      if (!chosen) chosen = [...candidates].sort((a,b) => (a.usage+a.articleType+a.baseColour).localeCompare(b.usage+b.articleType+b.baseColour))[0];
+      outfit.push({...chosen, component: part});
+    }
+    return {outfit, season, usage};
+  }
+
+  function shouldUseLocalRecommender(text) {
+    const t = text.toLowerCase();
+    return STYLE_KEYWORDS.some(k => t.includes(k));
+  }
+
+  // ---------------- state ----------------
+  let state = {
+    location: null,
+    tempF: null,
+    condition: null,
+    gender: 'Unisex',
+    history: [], // {role, content}
+  };
+
+  // ---------------- weather API hook ----------------
+  // Wire this up to your real weather endpoint (e.g. the app's weather.py
+  // logic exposed over HTTP, or a browser geolocation + weather API call).
+  // It must resolve to { location, tempF, condition }.
+  async function fetchWeather() {
+    // TODO: replace with a real call, e.g.:
+    // const res = await fetch('/api/weather');
+    // return await res.json();
+    await new Promise(r => setTimeout(r, 700)); // simulated latency
+    return { location: 'Berkeley, California', tempF: 64, condition: 'Clear' };
+  }
+
+  // ---------------- setup screen wiring ----------------
+  const $ = sel => root.querySelector(sel);
+
+  root.querySelectorAll('#psaGender .psa-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      root.querySelectorAll('#psaGender .psa-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+    });
+  });
+
+  $('#psaBegin').addEventListener('click', async () => {
+    state.gender = root.querySelector('#psaGender .psa-chip.active').dataset.g;
+
+    const beginBtn = $('#psaBegin');
+    const statusEl = $('#psaWeatherStatus');
+    beginBtn.disabled = true;
+    beginBtn.textContent = 'Fetching weather…';
+    statusEl.textContent = 'Reading current conditions near you…';
+
+    let weather;
+    try {
+      weather = await fetchWeather();
+    } catch (e) {
+      weather = { location: 'Unknown location', tempF: 64, condition: 'Clear' };
+      statusEl.textContent = 'Could not reach the weather service — using a default.';
+    }
+    state.location = weather.location;
+    state.tempF = weather.tempF;
+    state.condition = weather.condition;
+
+    $('#psaSetup').style.display = 'none';
+    $('#psaApp').classList.add('show');
+    $('#psaReset').style.display = 'inline-block';
+    $('#psaEyebrow').textContent = state.location + ' · ' + state.tempF + '°F';
+
+    $('#psaSideLoc').textContent = state.location;
+    $('#psaSideTemp').textContent = state.tempF + '°F';
+    $('#psaSideCond').textContent = state.condition;
+    $('#psaSideGender').textContent = state.gender === 'Unisex' ? 'Unisex' : (state.gender === 'Men' ? 'Masculine' : 'Feminine');
+    $('#psaSideSeason').textContent = inferSeason(state.tempF);
+    $('#psaSideCatalog').textContent = CATALOG.length + ' items';
+
+    addAssistantText(`Welcome in. It's ${state.tempF}°F and ${state.condition.toLowerCase()} in ${state.location}, and I've got your catalog pulled up. Ask me what to wear, or pick a prompt on the left.`);
+
+    beginBtn.disabled = false;
+    beginBtn.textContent = 'Begin styling session';
+    statusEl.textContent = '';
+  });
+
+  $('#psaReset').addEventListener('click', () => {
+    root.querySelector('#psaThread').innerHTML = '';
+    state.history = [];
+    $('#psaApp').classList.remove('show');
+    $('#psaSetup').style.display = 'flex';
+    $('#psaReset').style.display = 'none';
+    $('#psaEyebrow').textContent = 'Personal Stylist — Session 01';
+  });
+
+  // ---------------- chat rendering ----------------
+  const thread = $('#psaThread');
+  const typing = $('#psaTyping');
+
+  function scrollDown() { thread.scrollTop = thread.scrollHeight; }
+
+  function addUserText(text) {
+    const div = document.createElement('div');
+    div.className = 'psa-msg user';
+    div.innerHTML = `<div class="psa-who">You</div><div class="psa-bubble"></div>`;
+    div.querySelector('.psa-bubble').textContent = text;
+    thread.appendChild(div);
+    scrollDown();
+  }
+
+  function addAssistantText(text) {
+    const div = document.createElement('div');
+    div.className = 'psa-msg assistant';
+    div.innerHTML = `<div class="psa-who">Stylist</div><div class="psa-bubble"></div>`;
+    div.querySelector('.psa-bubble').textContent = text;
+    thread.appendChild(div);
+    scrollDown();
+  }
+
+  function addLookCard(outfit, season, usage) {
+    const div = document.createElement('div');
+    div.className = 'psa-msg assistant';
+    const rows = outfit.map(item => `
+      <div class="psa-item">
+        <div class="psa-swatch" style="background:${item.hex}"></div>
+        <div>
+          <div class="psa-item-part">${item.component}</div>
+          <div class="psa-item-name">${item.productDisplayName}</div>
+          <div class="psa-item-meta">${item.articleType} · ${item.baseColour} · ${item.usage}</div>
+        </div>
+      </div>`).join('');
+    div.innerHTML = `
+      <div class="psa-who">Stylist</div>
+      <div class="psa-look">
+        <div class="psa-look-title"><span>Look pulled from catalog</span><span>${season}${usage ? ' · ' + usage : ''}</span></div>
+        ${rows || '<div class="psa-item-meta">No exact matches — try another occasion.</div>'}
+      </div>`;
+    thread.appendChild(div);
+    scrollDown();
+  }
+
+  function wardrobeContextSummary() {
+    const types = [...new Set(CATALOG.map(i => i.articleType))];
+    const colors = [...new Set(CATALOG.map(i => i.baseColour))];
+    const seasons = [...new Set(CATALOG.map(i => i.season))];
+    return `Catalog: ${CATALOG.length} items. Article types: ${types.join(', ')}. Colors: ${colors.join(', ')}. Seasons: ${seasons.join(', ')}.`;
+  }
+
+  async function callStylistAI(userText) {
+    const systemPrompt = `You are a helpful, concise personal stylist AI assistant speaking inside a chat app called Studio Fit.
+Current weather: ${state.tempF}°F and ${state.condition} in ${state.location}.
+Preferred clothing profile: ${state.gender}.
+${wardrobeContextSummary()}
+Keep replies to 2-4 short sentences, warm and specific, in a stylist's voice. Do not use markdown headers.`;
+
+    state.history.push({role: 'user', content: userText});
+
+    try {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 300,
+          system: systemPrompt,
+          messages: state.history,
+        }),
+      });
+      const data = await response.json();
+      const text = (data.content || []).map(b => b.text || '').join('\n').trim() || "I'm not sure — could you rephrase that?";
+      state.history.push({role: 'assistant', content: text});
+      return text;
+    } catch (e) {
+      return "I'm having trouble reaching the styling desk right now — mind trying again in a moment?";
+    }
+  }
+
+  async function handleUserMessage(text) {
+    if (!text.trim()) return;
+    addUserText(text);
+    $('#psaInput').value = '';
+    $('#psaSend').disabled = true;
+
+    if (shouldUseLocalRecommender(text)) {
+      typing.style.display = 'block';
+      typing.textContent = 'pulling items from the catalog…';
+      await new Promise(r => setTimeout(r, 450));
+      typing.style.display = 'none';
+      const {outfit, season, usage} = recommendOutfit(state.tempF, text, state.gender);
+      addLookCard(outfit, season, usage);
+    } else {
+      typing.style.display = 'block';
+      typing.textContent = 'stylist is thinking…';
+      const reply = await callStylistAI(text);
+      typing.style.display = 'none';
+      addAssistantText(reply);
+    }
+    $('#psaSend').disabled = false;
+  }
+
+  $('#psaSend').addEventListener('click', () => handleUserMessage($('#psaInput').value));
+  $('#psaInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') handleUserMessage($('#psaInput').value);
+  });
+  root.querySelectorAll('.psa-prompt-btn').forEach(btn => {
+    btn.addEventListener('click', () => handleUserMessage(btn.dataset.prompt));
+  });
+})();
+</script>
