@@ -1,6 +1,7 @@
 import os
 from openai import OpenAI
 from weather import get_weather
+from wardrobe import get_wardrobe_context, get_available_styles_by_season, get_available_items_by_type
 
 # Read API key and optional base URL from environment
 api_key = os.getenv("OPENAI_API_KEY")
@@ -17,15 +18,26 @@ weather_info = get_weather()
 if not weather_info:
     weather_info = "Weather data unavailable"
 
-# System prompt with weather
+# Get catalog context
+wardrobe_context = get_wardrobe_context()
+
+# System prompt with weather and available catalog
 system_prompt = f"""You are a helpful personal stylist AI assistant. 
 You help users with clothing and fashion advice.
 
 Current weather in Berkeley, CA: {weather_info}
 
-When giving outfit recommendations, take the current weather into account."""
+{wardrobe_context}
+
+When giving outfit recommendations:
+1. Consider the current weather and suggest appropriate items
+2. Reference specific article types, colors, and styles from the available catalog
+3. Consider season, warmth, and formality level for the occasion
+4. Give specific recommendations (e.g., "A Navy Blue casual shirt with blue jeans")
+5. Explain why recommendations work for the weather and occasion"""
 
 print("Talk to the AI (type 'quit' to stop)")
+print("You can ask about outfit recommendations, what to wear, or how to style something!\n")
 
 while True:
     user_input = input("You: ")
@@ -35,7 +47,7 @@ while True:
     if client is None:
         # Simple offline fallback so the script remains usable without an API key
         if "outfit" in user_input.lower() or "help" in user_input.lower():
-            mock = f"(mock) Based on the weather ({weather_info}), I'd suggest wearing something appropriate for the conditions."
+            mock = f"(mock) Based on the weather ({weather_info}) and your wardrobe, I'd suggest wearing something appropriate for the conditions."
         else:
             mock = f"(mock) I received: {user_input}"
         print("AI:", mock)
