@@ -100,20 +100,63 @@ def _phrase_variants(text):
 def _expand_abbreviations(text):
     """Expand common abbreviations for states and countries."""
     replacements = {
+        "al": "alabama",
+        "az": "arizona",
+        "ar": "arkansas",
         "ca": "california",
         "calif": "california",
         "california": "california",
-        "wa": "washington",
-        "wash": "washington",
-        "washington": "washington",
+        "co": "colorado",
+        "ct": "connecticut",
+        "de": "delaware",
+        "fl": "florida",
+        "ga": "georgia",
+        "hi": "hawaii",
+        "id": "idaho",
+        "il": "illinois",
+        "in": "indiana",
+        "ia": "iowa",
+        "ks": "kansas",
+        "ky": "kentucky",
+        "la": "louisiana",
+        "me": "maine",
+        "md": "maryland",
+        "ma": "massachusetts",
+        "mi": "michigan",
+        "mn": "minnesota",
+        "ms": "mississippi",
+        "mo": "missouri",
+        "mt": "montana",
+        "ne": "nebraska",
+        "nv": "nevada",
+        "nh": "new hampshire",
+        "nj": "new jersey",
+        "nm": "new mexico",
+        "ny": "new york",
+        "nc": "north carolina",
+        "nd": "north dakota",
+        "oh": "ohio",
+        "ok": "oklahoma",
         "or": "oregon",
         "ore": "oregon",
         "oregon": "oregon",
+        "pa": "pennsylvania",
+        "ri": "rhode island",
+        "sc": "south carolina",
+        "sd": "south dakota",
+        "tn": "tennessee",
         "tx": "texas",
         "tex": "texas",
         "texas": "texas",
-        "ny": "new york",
-        "newyork": "new york",
+        "ut": "utah",
+        "vt": "vermont",
+        "va": "virginia",
+        "wa": "washington",
+        "wash": "washington",
+        "washington": "washington",
+        "wv": "west virginia",
+        "wi": "wisconsin",
+        "wy": "wyoming",
         "uk": "united kingdom",
         "u.k.": "united kingdom",
         "usa": "united states",
@@ -123,7 +166,7 @@ def _expand_abbreviations(text):
 
     words = []
     for word in text.split():
-        words.append(replacements.get(word.lower(), word))
+        words.append(replacements.get(word.lower().strip(".,;:-"), word))
     return " ".join(words)
 
 
@@ -144,29 +187,42 @@ def normalize_location_input(location_name):
     cleaned = cleaned.replace(",", ", ")
     cleaned = cleaned.strip()
 
-    common_words = {
-        "berkeley", "seattle", "san", "francisco", "jose", "new", "york",
-        "los", "angeles", "washington", "california", "oregon", "texas",
-        "portland", "austin", "sammamish", "berkeley", "ca", "wa", "tx", "ny",
-        "london", "paris", "berlin", "tokyo", "mumbai", "delhi", "rome", "oslo",
-        "stockholm", "copenhagen", "amsterdam", "prague", "vienna", "dublin"
-    }
+    if re.fullmatch(r"[\W_]+", cleaned):
+        return None
 
-    candidates = []
+    # Preserve obvious state abbreviations and common place names.
+    candidate_forms = []
+
+    # Keep the original form first.
+    candidate_forms.append(cleaned)
+
+    # Add a version with expanded abbreviations, but only when it seems helpful.
+    expanded = _expand_abbreviations(cleaned)
+    if expanded != cleaned:
+        candidate_forms.append(expanded)
+
+    # Add a compact comma-separated version for city,state inputs.
+    if "," in cleaned:
+        parts = [part.strip() for part in cleaned.split(",") if part.strip()]
+        if len(parts) == 2:
+            city, state = parts
+            compact = f"{city} {state}".strip()
+            candidate_forms.append(compact)
+            candidate_forms.append(f"{city}, {state}")
+
+    # Avoid over-aggressive variants that can corrupt valid names.
     for variant in _phrase_variants(cleaned):
-        corrected = variant
-        corrected = _expand_abbreviations(corrected)
-        corrected = re.sub(r"\s+", " ", corrected).strip()
+        normalized_variant = re.sub(r"\s+", " ", variant).strip()
+        if normalized_variant and normalized_variant not in candidate_forms:
+            candidate_forms.append(normalized_variant)
 
-        # Keep a few likely variants in candidate order
-        if corrected not in candidates:
-            candidates.append(corrected)
+    seen = []
+    for candidate in candidate_forms:
+        if not candidate or candidate in seen:
+            continue
+        seen.append(candidate)
 
-    if not candidates:
-        candidates = [cleaned]
-
-    # Try the original form first, then increasingly fuzzy variants.
-    for candidate in candidates:
+    for candidate in seen:
         if re.fullmatch(r"[\W_]+", candidate):
             continue
         if len(candidate) < 2:
@@ -237,32 +293,54 @@ def get_coordinates(location_name):
     if normalized is None:
         return None, None, None
 
-    url = "https://geocoding-api.open-meteo.com/v1/search"
-    params = {
-        "name": normalized,
-        "count": 1,
-        "language": "en",
-        "format": "json"
-    }
+    candidates = [normalized]
+    if "," in normalized:
+        parts = [part.strip() for part in normalized.split(",") if part.strip()]
+        if len(parts) == 2:
+            city, state = parts
+            state_key = state.lower().strip(".,;:-")
+            expanded_state = _expand_abbreviations(state).strip()
+            expanded_state_title = expanded_state.title()
+            candidates.extend([
+                city,
+                f"{city}, {state}",
+                f"{city}, {expanded_state_title}",
+                f"{city}, {state.title()}",
+                f"{city}, {state.upper()}",
+                f"{city} {state}",
+                f"{city} {expanded_state_title}",
+            ])
 
-    try:
-        resp = requests.get(url, params=params, timeout=5)
-        resp.raise_for_status()
-        data = resp.json()
+            if state_key != expanded_state:
+                candidates.append(f"{city}, {expanded_state}")
+                candidates.append(f"{city} {expanded_state}")
 
-        if data.get("results") and len(data["results"]) > 0:
-            result = data["results"][0]
-            lat = result.get("latitude")
-            lon = result.get("longitude")
-            city = result.get("name")
-            country = result.get("country")
-            return lat, lon, f"{city}, {country}"
-        else:
-            print(f"Location '{normalized}' not found.")
-            return None, None, None
-    except Exception as e:
-        print(f"Geocoding error: {e}")
-        return None, None, None
+    for candidate in candidates:
+        url = "https://geocoding-api.open-meteo.com/v1/search"
+        params = {
+            "name": candidate,
+            "count": 1,
+            "language": "en",
+            "format": "json"
+        }
+
+        try:
+            resp = requests.get(url, params=params, timeout=5)
+            resp.raise_for_status()
+            data = resp.json()
+
+            if data.get("results") and len(data["results"]) > 0:
+                result = data["results"][0]
+                lat = result.get("latitude")
+                lon = result.get("longitude")
+                city = result.get("name")
+                country = result.get("country")
+                return lat, lon, f"{city}, {country}"
+        except Exception as e:
+            print(f"Geocoding error for '{candidate}': {e}")
+
+    print(f"Location '{normalized}' not found.")
+    return None, None, None
 
 
 def get_coordinates_with_fallback(location_name, client=None):

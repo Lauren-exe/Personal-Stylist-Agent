@@ -10,6 +10,8 @@ class NormalizeLocationInputTests(unittest.TestCase):
     def test_corrects_common_typos(self):
         self.assertEqual(normalize_location_input("berkely, ca"), "Berkeley, CA")
         self.assertEqual(normalize_location_input("seatlle, wa"), "Seattle, WA")
+        self.assertEqual(normalize_location_input("sammamish, wa"), "Sammamish, Washington")
+        self.assertEqual(normalize_location_input("boise, id"), "Boise, Idaho")
         self.assertEqual(normalize_location_input("sealtte, wa"), "Seattle, WA")
         self.assertEqual(normalize_location_input("snafransico, ca"), "San Francisco, CA")
         self.assertEqual(normalize_location_input("sanfransisco, ca"), "San Francisco, CA")

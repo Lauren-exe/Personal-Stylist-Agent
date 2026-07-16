@@ -100,6 +100,7 @@ print(f"\nFetching weather for {location_name}...")
 weather_info = get_weather(latitude, longitude)
 if not weather_info:
     weather_info = "Weather data unavailable"
+    print("Using a fallback weather message because the live weather service did not respond.")
 
 
 # Get catalog context
