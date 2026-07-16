@@ -1,14 +1,14 @@
 import requests
 
-def get_weather():
-    """Fetch current weather for Berkeley, CA and return a short string.
+def get_weather(latitude, longitude):
+    """Fetch current weather for given coordinates and return a short string.
 
     Returns a string like "72°F, wind 5 m/s" or None on failure.
     """
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
-        "latitude": 37.8715,
-        "longitude": -122.2730,
+        "latitude": latitude,
+        "longitude": longitude,
         "current_weather": True,
         "temperature_unit": "fahrenheit"
     }
@@ -30,7 +30,7 @@ def get_weather():
         # Build a concise human-readable string
         weather_str = f"{temp}{temp_unit}, wind {wind} m/s"
 
-        print("\n--- Current Weather (Berkeley, CA) ---")
+        print("\n--- Current Weather ---")
         print(f"Temperature: {temp}{temp_unit}")
         print(f"Wind Speed:  {wind} m/s")
         print("--------------------------------------\n")
@@ -44,6 +44,33 @@ def get_weather():
         print(f"JSON Parsing Error: {e}")
         return None
 
-if __name__ == "__main__":
-    print(get_weather())
+
+def get_coordinates(location_name):
+    """Get latitude/longitude for a location using geocoding."""
+    url = "https://geocoding-api.open-meteo.com/v1/search"
+    params = {
+        "name": location_name,
+        "count": 1,
+        "language": "en",
+        "format": "json"
+    }
     
+    try:
+        resp = requests.get(url, params=params, timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+        
+        if data.get("results") and len(data["results"]) > 0:
+            result = data["results"][0]
+            lat = result.get("latitude")
+            lon = result.get("longitude")
+            city = result.get("name")
+            country = result.get("country")
+            return lat, lon, f"{city}, {country}"
+        else:
+            print(f"Location '{location_name}' not found.")
+            return None, None, None
+    except Exception as e:
+        print(f"Geocoding error: {e}")
+        return None, None, None
+
