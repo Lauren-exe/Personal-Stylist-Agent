@@ -71,7 +71,7 @@ def should_use_local_recommender(user_input):
 
 # Ask user for location
 print("Where are you located? (Default: Berkeley, California)")
-user_location = input("Enter your location (or press Enter for Berkeley): ").strip()
+user_location = input("Enter your city (or press Enter for Berkeley): ").strip()
 latitude, longitude, location_name = resolve_location(user_location, client)
 
 # Ask user for gender preference
