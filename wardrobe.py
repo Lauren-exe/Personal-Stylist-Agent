@@ -92,7 +92,15 @@ def _parse_temperature(weather_info):
     if not weather_info:
         return None
     import re
-    match = re.search(r"(-?\d+\.?\d*)\s*°[FC]", weather_info)
+    # Match temperature patterns like: 72°F, -96°F, 72.5°C, etc.
+    match = re.search(r"(-?\d+(?:\.\d+)?)\s*°[FC]", weather_info)
+    if match:
+        try:
+            return float(match.group(1))
+        except ValueError:
+            return None
+    # Fallback: try matching without degree symbol
+    match = re.search(r"(-?\d+(?:\.\d+)?)\s*[FC]", weather_info)
     if match:
         try:
             return float(match.group(1))
@@ -104,7 +112,8 @@ def _parse_temperature(weather_info):
 def _infer_season(weather_info):
     temp = _parse_temperature(weather_info)
     if temp is None:
-        return None
+        # If we can't parse temperature, default to Spring (moderate season)
+        return "Spring"
     if temp <= 50:
         return "Winter"
     if temp <= 65:
@@ -143,7 +152,7 @@ def _match_items(styles, season=None, usage=None, gender=None, article_types=Non
 def recommend_category_item(component, weather_info=None, occasion=None, gender="Unisex", variation=False, exclude_ids=None):
     styles = load_styles_catalog()
     links = load_clothes_links()
-    season = _infer_season(weather_info) or "Summer"
+    season = _infer_season(weather_info)
     variation = variation or _is_variation_request(occasion)
 
     component_types = {
@@ -220,7 +229,7 @@ def recommend_outfit(weather_info=None, occasion=None, gender="Unisex", variatio
     """Return a set of outfit items from the available catalog."""
     styles = load_styles_catalog()
     links = load_clothes_links()
-    season = _infer_season(weather_info) or "Summer"
+    season = _infer_season(weather_info)
     variation = variation or _is_variation_request(occasion)
 
     usage = None
