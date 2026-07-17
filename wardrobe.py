@@ -1,5 +1,6 @@
 import csv
 import os
+import random
 
 def load_styles_catalog(filepath="styles.csv"):
     """Load the full styles catalog with all clothing metadata."""
@@ -113,6 +114,17 @@ def _infer_season(weather_info):
     return "Summer"
 
 
+def _is_variation_request(occasion):
+    if not occasion:
+        return False
+    text = occasion.lower()
+    variation_keywords = [
+        'different outfit', 'another outfit', 'new outfit', 'other outfit',
+        'change outfit', 'new look', 'different look', 'another look',
+    ]
+    return any(keyword in text for keyword in variation_keywords)
+
+
 def _match_items(styles, season=None, usage=None, gender=None, article_types=None, max_items=10):
     candidates = []
     for item in styles.values():
@@ -128,11 +140,88 @@ def _match_items(styles, season=None, usage=None, gender=None, article_types=Non
     return candidates[:max_items]
 
 
-def recommend_outfit(weather_info=None, occasion=None, gender="Unisex"):
+def recommend_category_item(component, weather_info=None, occasion=None, gender="Unisex", variation=False, exclude_ids=None):
+    styles = load_styles_catalog()
+    links = load_clothes_links()
+    season = _infer_season(weather_info) or "Summer"
+    variation = variation or _is_variation_request(occasion)
+
+    component_types = {
+        'Top': ["Shirts", "Tshirts", "Kurtas", "Tops", "Sweatshirts", "Blazers", "Jackets", "Rain Jacket", "Waistcoat", "Dress", "Dresses"],
+        'Bottom': ["Jeans", "Track Pants", "Shorts", "Skirts", "Sarees"],
+        'Footwear': ["Shoes", "Formal Shoes", "Casual Shoes", "Sports Shoes", "Sandals", "Flip Flops", "Heels"],
+        'Accessory': ["Bags", "Watches", "Belts", "Jewellery", "Sunglasses", "Scarves", "Bracelets", "Pendant", "Wallets"],
+    }
+
+    if component not in component_types:
+        return None
+
+    article_types = component_types[component]
+    usage = None
+    if occasion:
+        text = occasion.lower()
+        if any(k in text for k in ["formal", "professional", "work", "meeting", "business", "interview", "presentation"]):
+            if "business casual" in text or "business-casual" in text:
+                usage = "Casual"
+            else:
+                usage = "Formal"
+        elif "casual" in text:
+            usage = "Casual"
+        elif "sports" in text or "sport" in text or "gym" in text:
+            usage = "Sports"
+        elif "ethnic" in text:
+            usage = "Ethnic"
+
+    candidates = _match_items(
+        styles,
+        season=season,
+        usage=usage,
+        gender=gender,
+        article_types=article_types,
+        max_items=50,
+    )
+
+    if exclude_ids:
+        candidates = [item for item in candidates if item.get('id') not in exclude_ids]
+
+    if not candidates:
+        candidates = _match_items(
+            styles,
+            season=None,
+            usage=usage,
+            gender=gender,
+            article_types=article_types,
+            max_items=50,
+        )
+        if exclude_ids:
+            candidates = [item for item in candidates if item.get('id') not in exclude_ids]
+
+    if not candidates:
+        return None
+
+    chosen = None
+    usage_matches = []
+    if usage:
+        usage_matches = [c for c in candidates if usage.lower() in c.get('usage', '').lower()]
+
+    if usage and usage_matches:
+        chosen = random.choice(usage_matches) if variation else usage_matches[0]
+    elif variation and len(candidates) > 0:
+        chosen = random.choice(candidates)
+    else:
+        chosen = sorted(candidates, key=lambda x: (x.get('usage', ''), x.get('articleType', ''), x.get('baseColour', '')))[0]
+
+    item = dict(chosen)
+    item['link'] = links.get(item['id'])
+    return item
+
+
+def recommend_outfit(weather_info=None, occasion=None, gender="Unisex", variation=False):
     """Return a set of outfit items from the available catalog."""
     styles = load_styles_catalog()
     links = load_clothes_links()
     season = _infer_season(weather_info) or "Summer"
+    variation = variation or _is_variation_request(occasion)
 
     usage = None
     if occasion:
@@ -180,16 +269,16 @@ def recommend_outfit(weather_info=None, occasion=None, gender="Unisex"):
             )
 
         if candidates:
-            # Prefer items whose usage matches the requested usage (e.g., Formal)
             chosen = None
+            usage_matches = []
             if usage:
-                for c in candidates:
-                    if usage.lower() in c.get('usage', '').lower():
-                        chosen = c
-                        break
+                usage_matches = [c for c in candidates if usage.lower() in c.get('usage', '').lower()]
 
-            # Fallback to deterministic choice when no exact usage match
-            if chosen is None:
+            if usage and usage_matches:
+                chosen = random.choice(usage_matches) if variation else usage_matches[0]
+            elif variation and len(candidates) > 0:
+                chosen = random.choice(candidates)
+            else:
                 chosen = sorted(candidates, key=lambda x: (x.get('usage', ''), x.get('articleType', ''), x.get('baseColour', '')))[0]
 
             item = dict(chosen)

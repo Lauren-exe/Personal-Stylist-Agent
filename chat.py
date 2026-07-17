@@ -1,120 +1,107 @@
+import json
 import os
+import sys
+import http.server
+import socketserver
 
 try:
     from openai import OpenAI
 except ImportError:
     OpenAI = None
 
-from weather import (
-    get_weather,
-    get_coordinates,
-    get_coordinates_with_fallback,
-    normalize_location_input,
-    suggest_location_correction,
-)
+from weather import get_weather, get_coordinates, get_coordinates_with_fallback, normalize_location_input
 from wardrobe import (
     get_wardrobe_context,
-    get_available_styles_by_season,
-    get_available_items_by_type,
     recommend_outfit,
+    recommend_category_item,
     format_outfit,
+    load_styles_catalog,
 )
 
-
 # Read API key and optional base URL from environment
-api_key = os.getenv("OPENAI_API_KEY")
-base_url = os.getenv("OPENAI_BASE_URL", "https://api.groq.com/openai/v1")
+api_key = os.getenv('OPENAI_API_KEY') or os.getenv('GROK_API_KEY')
+base_url = os.getenv('OPENAI_BASE_URL') or os.getenv('GROK_BASE_URL', 'https://api.groq.com/openai/v1')
 
 if api_key and OpenAI is not None:
     client = OpenAI(api_key=api_key, base_url=base_url)
 else:
     client = None
     if OpenAI is None:
-        print("Warning: openai package not installed; running in offline mock mode.")
+        print('Warning: openai package not installed; running in offline mock mode.')
     else:
-        print("Warning: OPENAI_API_KEY not set — running in offline mock mode.")
+        print('Warning: OPENAI_API_KEY or GROK_API_KEY not set — running in offline mock mode.')
+
+session_state = {
+    'last_occasion': None,
+    'last_outfit': None,
+}
 
 
-def resolve_location(initial_location, client):
-    """Resolve a user-provided location and ask again if it is unclear."""
+def target_outfit_component(message):
+    if not message:
+        return None
+    text = message.lower()
+    accessory_keywords = ['accessory', 'belt', 'bag', 'watch', 'jewellery', 'jewelry', 'scarf', 'sunglasses', 'bracelet', 'pendant', 'wallet']
+    top_keywords = ['top', 'shirt', 't-shirt', 'tshirt', 'blouse', 'jacket', 'coat', 'blazer', 'sweatshirt', 'hoodie', 'kurta', 'dress', 'dresses']
+    bottom_keywords = ['bottom', 'pants', 'trouser', 'trousers', 'jeans', 'skirt', 'short', 'shorts', 'saree']
+    footwear_keywords = ['shoe', 'shoes', 'sandal', 'sandals', 'heel', 'heels', 'sneaker', 'sneakers', 'boot', 'boots', 'footwear']
+
+    if any(word in text for word in accessory_keywords):
+        return 'Accessory'
+    if any(word in text for word in top_keywords):
+        return 'Top'
+    if any(word in text for word in bottom_keywords):
+        return 'Bottom'
+    if any(word in text for word in footwear_keywords):
+        return 'Footwear'
+    return None
+
+
+def resolve_location_api(initial_location):
+    """Resolve a location for API use without interactive prompts."""
     if not initial_location:
-        return 37.8715, -122.2730, "Berkeley, California"
+        return 37.8715, -122.2730, 'Berkeley, California'
 
     normalized = normalize_location_input(initial_location)
     if normalized is None:
-        print("I couldn't understand that location. Please enter a city or place name again.")
-        alternate = input("Enter a different city or place: ").strip()
-        if not alternate:
-            return 37.8715, -122.2730, "Berkeley, California"
-        return resolve_location(alternate, client)
-
-    if normalized != initial_location.strip() and client is not None:
-        suggested = suggest_location_correction(initial_location, client)
-        if suggested and suggested != initial_location.strip():
-            print(f"Using a cleaner location match: {suggested}")
-            normalized = suggested
-
-    if client is not None and normalized is not None and normalized != initial_location.strip():
-        suggested = suggest_location_correction(initial_location, client)
-        if suggested and suggested != initial_location.strip():
-            print(f"Using a cleaner location match: {suggested}")
-            normalized = suggested
+        return 37.8715, -122.2730, 'Berkeley, California'
 
     latitude, longitude, location_name = get_coordinates(normalized)
-    if latitude is None:
-        print(f"I couldn't confidently place '{initial_location}'. Please enter a city or place name again.")
-        alternate = input("Enter a different city or place: ").strip()
-        if not alternate:
-            return 37.8715, -122.2730, "Berkeley, California"
-        return resolve_location(alternate, client)
+    if latitude is None or longitude is None:
+        latitude, longitude, location_name = get_coordinates_with_fallback(normalized, client=client)
 
-    confirmation = input(f"I found '{location_name}'. Is that the right place? [Y/n]: ").strip().lower()
-    while confirmation not in {"", "y", "yes", "n", "no"}:
-        confirmation = input("Please answer yes or no: ").strip().lower()
+    if latitude is None or longitude is None:
+        return 37.8715, -122.2730, 'Berkeley, California'
 
-    if confirmation in {"", "y", "yes"}:
-        return latitude, longitude, location_name
-
-    alternate = input("Enter a different city or place: ").strip()
-    if not alternate:
-        return 37.8715, -122.2730, "Berkeley, California"
-    return resolve_location(alternate, client)
+    return latitude, longitude, location_name
 
 
 def should_use_local_recommender(user_input):
-    keywords = ["outfit", "what to wear", "wear", "style", "recommend", "suggest", "clothing", "wardrobe"]
+    keywords = [
+        'outfit', 'what to wear', 'wear', 'style', 'recommend', 'suggest',
+        'clothing', 'wardrobe', 'meeting', 'work', 'professional', 'formal',
+        'different', 'another', 'new look', 'accessory', 'top', 'bottom',
+        'shoes', 'shoe', 'jacket', 'coat', 'dress', 'skirt', 'pants', 'trousers',
+        'blazer', 'bag', 'belt', 'jeans', 'shirt', 'sweater', 'suit', 'casual',
+        'business casual', 'business-casual', 'sports', 'gym'
+    ]
     text = user_input.lower()
     return any(keyword in text for keyword in keywords)
 
 
-# Ask user for location
-print("Where are you located? (Default: Berkeley, California)")
-user_location = input("Enter your city (or press Enter for Berkeley): ").strip()
-latitude, longitude, location_name = resolve_location(user_location, client)
-
-# Ask user for gender preference
-print("\nDo you prefer masculine or feminine clothing? (M/F/leave blank for unisex)")
-gender_input = input("Enter M, F, or press Enter for unisex: ").strip().lower()
-if gender_input in {"m", "masculine", "male", "man"}:
-    preferred_gender = "Men"
-elif gender_input in {"f", "feminine", "female", "woman"}:
-    preferred_gender = "Women"
-else:
-    preferred_gender = "Unisex"
-
-# Get weather for the user's location
-print(f"\nFetching weather for {location_name}...")
-weather_info = get_weather(latitude, longitude)
-if not weather_info:
-    weather_info = "Weather data unavailable"
-    print("Using a fallback weather message because the live weather service did not respond.")
+def is_variation_request(message):
+    if not message:
+        return False
+    text = message.lower().strip()
+    variation_keywords = [
+        'different outfit', 'another outfit', 'new outfit', 'other outfit',
+        'change outfit', 'new look', 'different look', 'another look',
+    ]
+    return any(keyword in text for keyword in variation_keywords)
 
 
-# Get catalog context
-wardrobe_context = get_wardrobe_context()
-
-# System prompt with weather and available catalog
-system_prompt = f"""You are a helpful personal stylist AI assistant. 
+def create_system_prompt(location_name, weather_info, preferred_gender, wardrobe_context):
+    return f'''You are a helpful personal stylist AI assistant.
 You help users with clothing and fashion advice.
 
 Current weather in {location_name}: {weather_info}
@@ -127,42 +114,184 @@ When giving outfit recommendations:
 2. Reference specific article types, colors, and styles from the available catalog
 3. Consider season, warmth, and formality level for the occasion
 4. Give specific recommendations (e.g., "A Navy Blue casual shirt with blue jeans")
-5. Explain why recommendations work for the weather and occasion"""
+5. Explain why recommendations work for the weather and occasion'''
 
-print("Talk to the AI (type 'quit' to stop)")
-print("You can ask about outfit recommendations, what to wear, or how to style something!\n")
 
-while True:
-    user_input = input("You: ")
-    if user_input.lower() == "quit":
-        break
+def process_user_message(message, location, gender):
+    latitude, longitude, location_name = resolve_location_api(location)
+    weather_info = get_weather(latitude, longitude)
+    if not weather_info:
+        weather_info = 'Weather data unavailable'
 
-    if should_use_local_recommender(user_input):
-        outfit = recommend_outfit(weather_info=weather_info, occasion=user_input, gender=preferred_gender)
-        if outfit:
-            print("AI: Here are actual catalog items from your wardrobe:")
-            print(format_outfit(outfit))
+    result = {
+        'location_name': location_name,
+        'weather_info': weather_info,
+        'preferred_gender': gender,
+    }
+
+    use_local = should_use_local_recommender(message) or (is_variation_request(message) and session_state.get('last_occasion'))
+    if use_local:
+        category = target_outfit_component(message)
+        if category and session_state.get('last_outfit'):
+            occasion = session_state.get('last_occasion') or message
+            exclude_ids = [item['id'] for item in session_state['last_outfit'] if item.get('component') == category]
+            replacement = recommend_category_item(
+                category,
+                weather_info=weather_info,
+                occasion=occasion,
+                gender=gender,
+                variation=True,
+                exclude_ids=exclude_ids,
+            )
+            if replacement:
+                outfit = []
+                for item in session_state['last_outfit']:
+                    if item.get('component') == category:
+                        new_item = dict(replacement)
+                        new_item['component'] = category
+                        outfit.append(new_item)
+                    else:
+                        outfit.append(item)
+                session_state['last_outfit'] = outfit
+                result.update({
+                    'type': 'outfit',
+                    'outfit': outfit,
+                })
+                return result
+
+        if is_variation_request(message) and session_state.get('last_occasion'):
+            occasion = session_state['last_occasion']
+            variation = True
+        elif session_state.get('last_occasion') and any(keyword in message.lower() for keyword in ['different', 'another', 'change', 'accessory', 'top', 'bottom', 'shoe', 'shoes', 'jacket', 'coat', 'dress', 'skirt', 'pants', 'trousers', 'blazer', 'bag', 'belt']):
+            occasion = session_state['last_occasion']
+            variation = True
         else:
-            print("AI: I couldn't find matching items in the catalog.")
-        continue
+            occasion = message
+            variation = False
+            session_state['last_occasion'] = message
+
+        outfit = recommend_outfit(weather_info=weather_info, occasion=occasion, gender=gender, variation=variation)
+        session_state['last_outfit'] = outfit
+        result.update({
+            'type': 'outfit',
+            'outfit': outfit,
+        })
+        return result
 
     if client is None:
-        if "help" in user_input.lower():
-            mock = f"(mock) Based on the weather ({weather_info}) and your wardrobe, I'd suggest wearing something appropriate for the conditions."
-        else:
-            mock = f"(mock) I received: {user_input}"
-        print("AI:", mock)
-        continue
+        result.update({
+            'type': 'text',
+            'content': f'(mock) Based on the weather ({weather_info}) and your wardrobe, I would suggest pieces that fit the occasion.',
+        })
+        return result
 
     try:
+        wardrobe_context = get_wardrobe_context()
+        system_prompt = create_system_prompt(location_name, weather_info, gender, wardrobe_context)
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model='llama-3.3-70b-versatile',
             messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_input}
-            ]
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': message},
+            ],
         )
-        print("AI:", response.choices[0].message.content)
-    except Exception as e:
-        print("AI: (error calling API)", e)
+        text = response.choices[0].message.content
+        result.update({
+            'type': 'text',
+            'content': text,
+        })
+    except Exception as exc:
+        if should_use_local_recommender(message) or is_variation_request(message):
+            occasion = session_state.get('last_occasion') or message
+            outfit = recommend_outfit(weather_info=weather_info, occasion=occasion, gender=gender, variation=is_variation_request(message))
+            result.update({
+                'type': 'outfit',
+                'outfit': outfit,
+            })
+        else:
+            result.update({
+                'type': 'error',
+                'content': f'AI: (error calling API) {exc}',
+            })
+    return result
 
+
+class AgentHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
+    def end_headers(self):
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        super().end_headers()
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.end_headers()
+
+    def do_GET(self):
+        if self.path in ('/', '/index.html'):
+            self.path = '/personal-stylist-ui.html'
+        return super().do_GET()
+
+    def do_POST(self):
+        length = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(length).decode('utf-8')
+        try:
+            data = json.loads(body)
+        except json.JSONDecodeError:
+            self.send_response(400)
+            self.end_headers()
+            return
+
+        if self.path == '/api/setup':
+            location = data.get('location', '')
+            gender = data.get('gender', 'Unisex')
+            latitude, longitude, location_name = resolve_location_api(location)
+            weather_info = get_weather(latitude, longitude)
+            if not weather_info:
+                weather_info = 'Weather data unavailable'
+            wardrobe_context = get_wardrobe_context()
+            payload = {
+                'location_name': location_name,
+                'weather_info': weather_info,
+                'preferred_gender': gender,
+                'catalog_count': len(load_styles_catalog()),
+                'wardrobe_context': wardrobe_context,
+            }
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(payload).encode('utf-8'))
+            return
+
+        if self.path == '/api/message':
+            message = data.get('message', '')
+            location = data.get('location', '')
+            gender = data.get('gender', 'Unisex')
+            payload = process_user_message(message, location, gender)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(payload).encode('utf-8'))
+            return
+
+        self.send_response(404)
+        self.end_headers()
+
+
+def run_server(port=8000):
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    with socketserver.TCPServer(('0.0.0.0', port), AgentHTTPRequestHandler) as httpd:
+        print(f'Serving UI and agent at http://localhost:{port}')
+        httpd.serve_forever()
+
+
+def run_cli():
+    print('This application now prefers the web UI.')
+    print('Run: python3 chat.py')
+
+
+if __name__ == '__main__':
+    if '--cli' in sys.argv:
+        run_cli()
+    else:
+        run_server()

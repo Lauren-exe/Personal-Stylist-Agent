@@ -275,6 +275,54 @@ def get_weather(latitude, longitude):
         return None
 
 
+def _geocode_open_meteo(candidate):
+    url = "https://geocoding-api.open-meteo.com/v1/search"
+    params = {
+        "name": candidate,
+        "count": 1,
+        "language": "en",
+        "format": "json"
+    }
+    try:
+        resp = requests.get(url, params=params, timeout=4)
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get("results") and len(data["results"]) > 0:
+            result = data["results"][0]
+            return result
+    except Exception as e:
+        print(f"Geocoding error for '{candidate}' using Open-Meteo: {e}")
+    return None
+
+
+def _geocode_nominatim(candidate):
+    url = "https://nominatim.openstreetmap.org/search"
+    params = {
+        "q": candidate,
+        "format": "json",
+        "limit": 1,
+    }
+    headers = {
+        "User-Agent": "PersonalStylishAgent/1.0 (contact: none)"
+    }
+    try:
+        resp = requests.get(url, params=params, headers=headers, timeout=4)
+        resp.raise_for_status()
+        data = resp.json()
+        if data:
+            result = data[0]
+            return {
+                'latitude': float(result.get('lat')),
+                'longitude': float(result.get('lon')),
+                'name': result.get('display_name', candidate),
+                'admin1': result.get('state', ''),
+                'country': result.get('country', ''),
+            }
+    except Exception as e:
+        print(f"Geocoding error for '{candidate}' using Nominatim: {e}")
+    return None
+
+
 def get_coordinates(location_name):
     """Get latitude/longitude for a location using geocoding."""
     normalized = normalize_location_input(location_name)
@@ -304,27 +352,20 @@ def get_coordinates(location_name):
                 candidates.append(f"{city} {expanded_state}")
 
     for candidate in candidates:
-        url = "https://geocoding-api.open-meteo.com/v1/search"
-        params = {
-            "name": candidate,
-            "count": 1,
-            "language": "en",
-            "format": "json"
-        }
+        result = _geocode_open_meteo(candidate)
+        if result:
+            lat = result.get("latitude")
+            lon = result.get("longitude")
+            place = _format_location_label(result)
+            return lat, lon, place
 
-        try:
-            resp = requests.get(url, params=params, timeout=5)
-            resp.raise_for_status()
-            data = resp.json()
-
-            if data.get("results") and len(data["results"]) > 0:
-                result = data["results"][0]
-                lat = result.get("latitude")
-                lon = result.get("longitude")
-                place = _format_location_label(result)
-                return lat, lon, place
-        except Exception as e:
-            print(f"Geocoding error for '{candidate}': {e}")
+    for candidate in candidates:
+        result = _geocode_nominatim(candidate)
+        if result:
+            lat = result.get("latitude")
+            lon = result.get("longitude")
+            place = _format_location_label(result)
+            return lat, lon, place
 
     print(f"Location '{normalized}' not found.")
     return None, None, None
